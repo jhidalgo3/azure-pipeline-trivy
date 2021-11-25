@@ -1,0 +1,48 @@
+variables:
+  trivyVersion: 0.21.0
+  IMAGE: "jhidalgo3/python-webhook-echo"
+
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+
+#- script: |
+#    sudo apt-get install rpm
+#    wget https://github.com/aquasecurity/trivy/releases/download/v$(trivyVersion)/trivy_$(trivyVersion)_Linux-64bit.deb
+#    sudo dpkg -i trivy_$(trivyVersion)_Linux-64bit.deb
+#    trivy -v
+#  displayName: 'Download and install Trivy'
+#
+#- task: CmdLine@2
+#  displayName: Run Trivy scan
+#  inputs:
+#    script: |
+#      trivy image --format template --template "@junit.tpl" -o junit-report.xml --severity HIGH,CRITICAL --no-progress ${IMAGE}
+#      cp junit-report.xml $(Build.ArtifactStagingDirectory)/junit-report.xml
+
+- task: CmdLine@2
+  displayName: Scan
+  inputs:
+    script: |
+      docker run -v /var/run/docker.sock:/var/run/docker.sock -v $PWD:/app --rm aquasec/trivy image --severity HIGH,CRITICAL --no-progress --format template --template "@contrib/junit.tpl" -o /app/junit-report.xml ${IMAGE}
+      cp junit-report.xml $(Build.ArtifactStagingDirectory)/junit-report.xml
+
+- task: PublishBuildArtifacts@1
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    ArtifactName: 'drop'
+    publishLocation: 'Container'
+
+- task: PublishTestResults@2
+  inputs:
+    testResultsFormat: 'JUnit'
+    testResultsFiles: '**/junit-*.xml'
+    mergeTestResults: true
+    failTaskOnFailedTests: true
+    testRunTitle: 'Trivy'
+  condition: 'always()'
+
